@@ -6,8 +6,9 @@
 #include "streams.h"
 
 #include "MinerFactory.h"
-
 #include "libstratum/StratumClient.h"
+
+#include "exceptions/InvalidParametersNumber.h"
 
 #if defined(USE_OCL_XMP) || defined(USE_OCL_SILENTARMY)
 #include "../ocl_device_utils/ocl_device_utils.h"
@@ -78,6 +79,14 @@ extern "C" void stratum_sigint_handler(int signum)
 		delete _MinerFactory;
 		_MinerFactory = nullptr;
 	}	
+}
+
+char* getArg(int argc, char** argv, int i) {
+	if (argc <= i) {
+		throw InvalidParametersNumber();
+	}
+	
+	return argv[i];
 }
 
 void print_help()
@@ -281,100 +290,105 @@ int main(int argc, char* argv[])
 	int cuda_tbpc = 0;
 	int force_cpu_ext = -1;
 
-	for (int i = 1; i < argc; ++i)
-	{
-		if (argv[i][0] != '-') continue;
+	try {
+		for (int i = 1; i < argc; ++i)
+		{
+			if (argv[i][0] != '-') continue;
 
-		switch (argv[i][1])
-		{
-		case 'c':
-		{
-			switch (argv[i][2])
-			{
-			case 'i':
-				print_cuda_info();
-				return 0;
-			case 'v':
-				use_old_cuda = atoi(argv[++i]);
-				break;
-			case 'd':
-				while (cuda_device_count < MAX_INSTANCES && i + 1 < argc)
-				{
-					try
-					{
-						cuda_enabled[cuda_device_count] = std::stol(argv[++i]);
-						++cuda_device_count;
-					}
-					catch (...)
-					{
-						--i;
-						break;
-					}
-				}
-				break;
-			case 'b':
-				while (cuda_bc < MAX_INSTANCES && i + 1 < argc)
-				{
-					try
-					{
-						cuda_blocks[cuda_bc] = std::stol(argv[++i]);
-						++cuda_bc;
-					}
-					catch (...)
-					{
-						--i;
-						break;
-					}
-				}
-				break;
-			case 't':
-				while (cuda_tbpc < MAX_INSTANCES && i + 1 < argc)
-				{
-					try
-					{
-						cuda_tpb[cuda_tbpc] = std::stol(argv[++i]);
-						++cuda_tbpc;
-					}
-					catch (...)
-					{
-						--i;
-						break;
-					}
-				}
-				break;
+			switch (argv[i][1]) {
+            case 'c': {
+                switch (argv[i][2]) {
+                case 'i':
+                    print_cuda_info();
+                    return 0;
+                case 'v':
+                    use_old_cuda = atoi(getArg(argc, argv, ++i));
+                    break;
+                case 'd':
+                    while (cuda_device_count < MAX_INSTANCES && i + 1 < argc)
+                    {
+                        try
+                        {
+                            cuda_enabled[cuda_device_count] = std::stol(getArg(argc, argv, ++i));
+                            ++cuda_device_count;
+                        }
+                        catch (...)
+                        {
+                            --i;
+                            break;
+                        }
+                    }
+                    break;
+                case 'b':
+                    while (cuda_bc < MAX_INSTANCES && i + 1 < argc)
+                    {
+                        try
+                        {
+                            cuda_blocks[cuda_bc] = std::stol(getArg(argc, argv, ++i));
+                            ++cuda_bc;
+                        }
+                        catch (...)
+                        {
+                            --i;
+                            break;
+                        }
+                    }
+                    break;
+                case 't':
+                    while (cuda_tbpc < MAX_INSTANCES && i + 1 < argc)
+                    {
+                        try
+                        {
+                            cuda_tpb[cuda_tbpc] = std::stol(getArg(argc, argv, ++i));
+                            ++cuda_tbpc;
+                        }
+                        catch (...)
+                        {
+                            --i;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                break;
+            }
+            case 'l':
+                location = getArg(argc, argv, ++i);
+                break;
+            case 'u':
+                user = getArg(argc, argv, ++i);
+                break;
+            case 'p':
+                password = getArg(argc, argv, ++i);
+                break;
+            case 't':
+                num_threads = stoi(getArg(argc, argv, ++i));
+                break;
+            case 'h':
+                print_help();
+                return 0;
+            case 'b':
+                benchmark = true;
+                if (argv[i + 1] && argv[i + 1][0] != '-')
+                    num_hashes = atoi(getArg(argc, argv, ++i));
+                break;
+            case 'd':
+                log_level = atoi(getArg(argc, argv, ++i));
+                break;
+            case 'a':
+                api_port = atoi(getArg(argc, argv, ++i));
+                break;
+            case 'e':
+                force_cpu_ext = atoi(getArg(argc, argv, ++i));
+                break;
+            default:
+                print_help();
+                return 0;
 			}
-			break;
 		}
-		case 'l':
-			location = argv[++i];
-			break;
-		case 'u':
-			user = argv[++i];
-			break;
-		case 'p':
-			password = argv[++i];
-			break;
-		case 't':
-			num_threads = atoi(argv[++i]);
-			break;
-		case 'h':
-			print_help();
-			return 0;
-		case 'b':
-			benchmark = true;
-			if (argv[i + 1] && argv[i + 1][0] != '-')
-				num_hashes = atoi(argv[++i]);
-			break;
-		case 'd':
-			log_level = atoi(argv[++i]);
-			break;
-		case 'a':
-			api_port = atoi(argv[++i]);
-			break;
-		case 'e':
-			force_cpu_ext = atoi(argv[++i]);
-			break;
-		}
+	} catch (InvalidParametersNumber ex) {
+		print_help();
+		return 0;
 	}
 
 	if (force_cpu_ext >= 0)
